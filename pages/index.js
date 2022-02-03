@@ -1,6 +1,6 @@
 import { Box, Button, Text, TextField, Image } from '@skynexui/components';
 import { useRouter } from 'next/router'
-import React from 'react';
+import { useState } from 'react';
 import appConfig from '../config.json';
 
 function Titulo(props) {
@@ -21,7 +21,7 @@ function Titulo(props) {
 
 export default function PaginaInicial() {
 //   const username  'oliveiranickolas';
-const [username, setUsername] = React.useState('Digite seu user github');
+const [username, setUsername] = useState('');
 const roteamento = useRouter()
 
   return (
@@ -55,7 +55,7 @@ const roteamento = useRouter()
             onSubmit={(clicou) => { 
                 clicou.preventDefault();
                 console.log('form submited')
-                roteamento.push('/chat')
+                roteamento.push(`/chat?username=${username}`)
             }}
             styleSheet={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -78,6 +78,7 @@ const roteamento = useRouter()
                       backgroundColor: appConfig.theme.colors.neutrals[800],
                     },
                 }}
+                placeholder="Digite seu user do GitHub"
                 value={username}
                 onChange={ (event) => {
                     const valor = event.target.value

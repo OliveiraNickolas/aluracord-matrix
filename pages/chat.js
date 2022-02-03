@@ -1,23 +1,72 @@
 import { Box, Text, TextField, Image, Button } from '@skynexui/components';
-import React from 'react';
+import { useState, useEffect } from 'react';
 import appConfig from '../config.json';
+import { useRouter } from 'next/router';
+import { createClient } from '@supabase/supabase-js'
+import { ButtonSendSticker } from '../src/components/ButtonSendSticker';
+
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTY0Mzg0NDYwMSwiZXhwIjoxOTU5NDIwNjAxfQ.isq_mJ2jkx6qraiYjwkvNR0kg1eKTMWAf23m84mo_Fc'
+const SUPABASE_URL = 'https://ybrgscbxhhticjvudxre.supabase.co'
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+
+function escutaMensagensEmTempoReal(adicionaMensagem) {
+    return supabaseClient
+        .from('mensagens')
+        .on('INSERT', (respostaLive) => {
+            adicionaMensagem(respostaLive.new);
+        })
+        .subscribe();
+}
 
 export default function ChatPage() {
-    const [mensagem, setMensagem] = React.useState('');
-    const [listaDeMensagens, setListaDeMensagens] = React.useState([]);
+    const roteamento = useRouter();
+    const usuarioLogado = roteamento.query.username;
+    const [mensagem, setMensagem] = useState('');
+    const [listaDeMensagens, setListaDeMensagens] = useState([]);
 
-    
+    useEffect(() => {
+        supabaseClient
+            .from('mensagens')
+            .select('*')
+            .order('id', { ascending: false })
+            .then(({ data }) => {
+                setListaDeMensagens(data);
+            });
+
+        const subscription = escutaMensagensEmTempoReal((novaMensagem) => {
+            console.log('Nova mensagem:', novaMensagem);
+            console.log('listaDeMensagens:', listaDeMensagens);
+            setListaDeMensagens((valorAtualDaLista) => {
+                console.log('valorAtualDaLista:', valorAtualDaLista);
+                return [
+                    novaMensagem,
+                    ...valorAtualDaLista,
+                ]
+            });
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        }
+    }, []);
+
     function handleNovaMensagem(novaMensagem) {
         const mensagem = {
-            id: listaDeMensagens.length + 1,
-            de: 'oliveiranickolas',
+            // id: listaDeMensagens.length + 1,
+            de: usuarioLogado,
             texto: novaMensagem,
         };
 
-        setListaDeMensagens([
-            mensagem,
-            ...listaDeMensagens,
-        ]);
+        supabaseClient
+            .from('mensagens')
+            .insert([
+                mensagem
+            ])
+            .then(({ data }) => {
+                console.log('Criando mensagem: ', data);
+            });
+
         setMensagem('');
     }
 
@@ -60,14 +109,6 @@ export default function ChatPage() {
                 >
                     <MessageList mensagens={listaDeMensagens} />
 
-                    {/* {listaDeMensagens.map((mensagemAtual) => {
-                        return (
-                            <li key={mensagemAtual.id}>
-                                {mensagemAtual.de}: {mensagemAtual.texto}
-                            </li>
-                        )
-                    })} */}
-
                     <Box
                         as="form"
                         styleSheet={{
@@ -100,6 +141,13 @@ export default function ChatPage() {
                                 color: appConfig.theme.colors.neutrals[200],
                             }}
                         />
+                        {/* CallBack */}
+                        <ButtonSendSticker
+                            onStickerClick={(sticker) => {
+                                // console.log('[USANDO O COMPONENTE] Salva esse sticker no banco', sticker);
+                                handleNovaMensagem(':sticker: ' + sticker);
+                            }}
+                        />
                     </Box>
                 </Box>
             </Box>
@@ -126,12 +174,12 @@ function Header() {
 }
 
 function MessageList(props) {
-    console.log(props);
+    // console.log(props);
     return (
         <Box
             tag="ul"
             styleSheet={{
-                overflow: 'hidden',
+                overflow: 'scroll',
                 display: 'flex',
                 flexDirection: 'column-reverse',
                 flex: 1,
@@ -155,6 +203,27 @@ function MessageList(props) {
                     >
                         <Box
                             styleSheet={{
+                                position: 'relative',
+                            }}
+                        >
+                            <Button
+                                styleSheet={{
+                                    position: 'absolute',
+                                    right: '4px',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}
+                                buttonColors={{
+                                    contrastColor: appConfig.theme.colors.neutrals["300"],
+                                    mainColor: appConfig.theme.colors.neutrals[600],
+                                    mainColorLight: appConfig.theme.colors.neutrals[400],
+                                    mainColorStrong: appConfig.theme.colors.neutrals[800],
+                                }}
+                                label="✖"
+                            />
+                        </Box>
+                        <Box
+                            styleSheet={{
                                 marginBottom: '8px',
                             }}
                         >
@@ -166,7 +235,7 @@ function MessageList(props) {
                                     display: 'inline-block',
                                     marginRight: '8px',
                                 }}
-                                src={`https://github.com/oliveiranickolas.png`}
+                                src={`https://github.com/${mensagem.de}.png`}
                             />
                             <Text tag="strong">
                                 {mensagem.de}
@@ -182,7 +251,15 @@ function MessageList(props) {
                                 {(new Date().toLocaleDateString())}
                             </Text>
                         </Box>
-                        {mensagem.texto}
+
+
+                        {mensagem.texto.startsWith(':sticker:')
+                            ? (
+                                <Image src={mensagem.texto.replace(':sticker:', '')} />
+                            )
+                            : (
+                                mensagem.texto
+                            )}
                     </Text>
                 );
             })}
